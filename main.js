@@ -13,18 +13,18 @@ const loadConfiguration = () => {
   const range = configSheet.getDataRange();
   const values = range.getValues();
   const config = {};
-  values.forEach(row => {
+  values.forEach((row) => {
     config[row[0]] = row[1];
   });
   return config;
-}
+};
 
 const config = loadConfiguration();
-GITHUB_OWNER = config["GITHUB_OWNER"] || '';
-GITHUB_REPOSITORY = config["GITHUB_REPOSITORY"] || '';
-GITHUB_ACCESS_TOKEN = config["GITHUB_ACCESS_TOKEN"] || '';
-SPREADSHEET_ID = config["SPREADSHEET_ID"] || '';
-GITHUB_URL = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPOSITORY}` || ''; 
+GITHUB_OWNER = config['GITHUB_OWNER'] || '';
+GITHUB_REPOSITORY = config['GITHUB_REPOSITORY'] || '';
+GITHUB_ACCESS_TOKEN = config['GITHUB_ACCESS_TOKEN'] || '';
+SPREADSHEET_ID = config['SPREADSHEET_ID'] || '';
+GITHUB_URL = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPOSITORY}` || '';
 
 /**
  * スプレッドシートの列管理シートから、列番号を取得する
@@ -32,17 +32,22 @@ GITHUB_URL = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPOSITORY}`
 const loadColumnIndexes = () => {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const columnSheet = ss.getSheetByName('列管理'); // 列管理シートを指定
-  const range = columnSheet.getRange(2, 1, columnSheet.getLastRow() - 1, columnSheet.getLastColumn() );
+  const range = columnSheet.getRange(
+    2,
+    1,
+    columnSheet.getLastRow() - 1,
+    columnSheet.getLastColumn(),
+  );
   const values = range.getValues();
   const columnIndexes = {};
 
-  values.forEach(row => {
+  values.forEach((row) => {
     const columnName = row[1];
     const columnIndex = row[2];
     columnIndexes[columnName] = columnIndex;
   });
   return columnIndexes;
-}
+};
 
 const START_ROW = 3;
 const START_COLUMN = 1;
@@ -58,20 +63,19 @@ const COLUMN_SEND_COMMENT = columnIndexes['SEND_COMMENT'];
 const COLUMN_EXECUTION = columnIndexes['EXECUTION'];
 const COLUMN_URL = columnIndexes['URL'];
 
-
 /**
  * githubからlabelsを取得する
  */
 const fetchAllLabels = () => {
   const url = `${GITHUB_URL}/labels`;
   const headers = {
-    'Authorization': 'token ' + GITHUB_ACCESS_TOKEN,
-    'Accept': 'application/vnd.github.v3+json'
+    Authorization: 'token ' + GITHUB_ACCESS_TOKEN,
+    Accept: 'application/vnd.github.v3+json',
   };
   const options = {
-    'method': 'GET',
-    'headers': headers,
-    'muteHttpExceptions': true
+    method: 'GET',
+    headers: headers,
+    muteHttpExceptions: true,
   };
 
   /**
@@ -80,8 +84,8 @@ const fetchAllLabels = () => {
    */
   const response = UrlFetchApp.fetch(url, options);
   const getlabelsData = JSON.parse(response.getContentText());
-  return getlabelsData.map(label => label.name);
-}
+  return getlabelsData.map((label) => label.name);
+};
 
 /** HTTP通信でgithubから取得したlabelsでスプシにプルダウンリストを作る関数 */
 const initializeLabelDropdown = (sheet) => {
@@ -92,67 +96,64 @@ const initializeLabelDropdown = (sheet) => {
   const rule = SpreadsheetApp.newDataValidation()
     .requireValueInList(labels, true)
     .setAllowInvalid(false)
-    .setHelpText("Select a label from the list")
+    .setHelpText('Select a label from the list')
     .build();
   range.setDataValidation(rule);
-}
-
-
+};
 
 /**
  * githubからissueを取得する
  */
 const fetchIssues = () => {
-  const url = `${GITHUB_URL}/issues`
+  const url = `${GITHUB_URL}/issues`;
   const options = {
-    'method': 'GET',
-    'headers': { 'Authorization': `token ${GITHUB_ACCESS_TOKEN}` },
-    'muteHttpExceptions': true
+    method: 'GET',
+    headers: { Authorization: `token ${GITHUB_ACCESS_TOKEN}` },
+    muteHttpExceptions: true,
   };
   const response = UrlFetchApp.fetch(url, options);
   const fetchIssuesData = JSON.parse(response.getContentText());
-  return fetchIssuesData.filter(issue => !issue.pull_request).map(issue => ({
-    ...issue,
-    assignees: issue.assignees.map(assignee => assignee.login).join(', ')
-  }));
-}
-
+  return fetchIssuesData
+    .filter((issue) => !issue.pull_request)
+    .map((issue) => ({
+      ...issue,
+      assignees: issue.assignees.map((assignee) => assignee.login).join(', '),
+    }));
+};
 
 /**
  * コメントを取得する
  */
-const  fetchLatestIssueComment = (issueId) => {
+const fetchLatestIssueComment = (issueId) => {
   const url = `${GITHUB_URL}/issues/${issueId}/comments`;
   const options = {
     method: 'GET',
-    headers: { 'Authorization': `token ${GITHUB_ACCESS_TOKEN}` },
-    muteHttpExceptions: true
+    headers: { Authorization: `token ${GITHUB_ACCESS_TOKEN}` },
+    muteHttpExceptions: true,
   };
   const response = UrlFetchApp.fetch(url, options);
   const comments = JSON.parse(response.getContentText());
   // コメントがあれば最新のものを返し、なければbodyを返す
   return comments.length !== 0 ? comments[comments.length - 1].body : issueId.body;
-}
-
+};
 
 /**
  * issue（+コメント）を取得してスプシに記入する
  */
-const populateSheetWithIssues = (sheet,logSheet) => {
-
+const populateSheetWithIssues = (sheet, logSheet) => {
   try {
     const issues = fetchIssues();
     issues.sort((a, b) => b.number - a.number);
     const lastColumn = sheet.getLastColumn();
     const data = [];
 
-    issues.forEach(issue => {
+    issues.forEach((issue) => {
       const latestComment = fetchLatestIssueComment(issue.number) || issue.body;
       const titleWithLink = `=HYPERLINK("${issue.html_url}", "${issue.title}")`;
       const rowData = {
         [COLUMN_ISSUE_ID]: issue.number,
         [COLUMN_TITLE]: titleWithLink,
-        [COLUMN_LABELS]: issue.labels.map(label => label.name).join(', '),
+        [COLUMN_LABELS]: issue.labels.map((label) => label.name).join(', '),
         [COLUMN_ASSIGNEES]: issue.assignees,
         [COLUMN_COMMENT]: latestComment,
         [COLUMN_SEND_LABELS]: '',
@@ -172,34 +173,32 @@ const populateSheetWithIssues = (sheet,logSheet) => {
   } catch (error) {
     logSheet.appendRow([new Date(), 'Error populating sheet with issues:', error]);
   }
-}
+};
 
-
-
-/** 
+/**
  * スプシからgithubにlabelの追加
  */
 /** HTTP通信を行う関数 */
 const fetchCurrentIssueLabels = (issueId) => {
   const url = `${GITHUB_URL}/issues/${issueId}`;
   const headers = {
-    'Authorization': `token ${GITHUB_ACCESS_TOKEN}`,
-    'Accept': 'application/vnd.github.v3+json'
+    Authorization: `token ${GITHUB_ACCESS_TOKEN}`,
+    Accept: 'application/vnd.github.v3+json',
   };
   const options = {
-    'method': 'GET',
-    'headers': headers
+    method: 'GET',
+    headers: headers,
   };
 
   const response = UrlFetchApp.fetch(url, options);
   const issueData = JSON.parse(response.getContentText());
-  return issueData.labels.map(label => label.name);
-}
+  return issueData.labels.map((label) => label.name);
+};
 
 /** スプシからgithubにlabelsを追加する */
-const updateIssueLabelsInGithub = (sheet,editedRow) => {
-  const issueId = sheet.getRange(editedRow, COLUMN_ISSUE_ID).getValue(); 
-  const newLabels = sheet.getRange(editedRow, COLUMN_SEND_LABELS).getValue().split(","); 
+const updateIssueLabelsInGithub = (sheet, editedRow) => {
+  const issueId = sheet.getRange(editedRow, COLUMN_ISSUE_ID).getValue();
+  const newLabels = sheet.getRange(editedRow, COLUMN_SEND_LABELS).getValue().split(',');
 
   if (newLabels.length === 0) {
     return; // 新しいラベルがない場合は何もせずに処理を終了
@@ -214,44 +213,42 @@ const updateIssueLabelsInGithub = (sheet,editedRow) => {
   const options = {
     method: 'PATCH',
     headers: {
-      'Authorization': `token ${GITHUB_ACCESS_TOKEN}`,
-      'Accept': 'application/vnd.github.v3+json'
+      Authorization: `token ${GITHUB_ACCESS_TOKEN}`,
+      Accept: 'application/vnd.github.v3+json',
     },
     payload: JSON.stringify({ labels: Array.from(allLabels) }),
   };
   UrlFetchApp.fetch(url, options);
 
   // スプシにラベルを更新
-  sheet.getRange(editedRow, COLUMN_LABELS).setValue(Array.from(allLabels).join(", "));
+  sheet.getRange(editedRow, COLUMN_LABELS).setValue(Array.from(allLabels).join(', '));
   sheet.getRange(editedRow, COLUMN_SEND_LABELS).clearContent();
-}
+};
 
-
-/** 
+/**
  * スプシからgithubにcommentの追加
  */
-const postCommentToGithubIssue = (sheet,editedRow) => {
-  const issueId = sheet.getRange(editedRow, COLUMN_ISSUE_ID).getValue(); 
-  const mention = sheet.getRange(editedRow, COLUMN_SEND_MENTION).getValue(); 
-  const newComment = sheet.getRange(editedRow, COLUMN_SEND_COMMENT).getValue(); 
+const postCommentToGithubIssue = (sheet, editedRow) => {
+  const issueId = sheet.getRange(editedRow, COLUMN_ISSUE_ID).getValue();
+  const mention = sheet.getRange(editedRow, COLUMN_SEND_MENTION).getValue();
+  const newComment = sheet.getRange(editedRow, COLUMN_SEND_COMMENT).getValue();
   let submitComment = mention ? `@${mention}\n${newComment}` : newComment;
 
   const url = `${GITHUB_URL}/issues/${issueId}/comments`;
   const options = {
     method: 'POST',
     headers: {
-      'Authorization': `token ${GITHUB_ACCESS_TOKEN}`,
-      'Accept': 'application/vnd.github.v3+json'
+      Authorization: `token ${GITHUB_ACCESS_TOKEN}`,
+      Accept: 'application/vnd.github.v3+json',
     },
-      payload: JSON.stringify({ body: submitComment }),
-      muteHttpExceptions: true
+    payload: JSON.stringify({ body: submitComment }),
+    muteHttpExceptions: true,
   };
   UrlFetchApp.fetch(url, options);
 
   sheet.getRange(editedRow, COLUMN_SEND_MENTION).clearContent();
   sheet.getRange(editedRow, COLUMN_SEND_COMMENT).clearContent();
-}
-
+};
 
 // Issueが閉じられた時の処理
 const handleClosedIssue = (sheet, logSheet, lastRow, issueId) => {
@@ -262,25 +259,29 @@ const handleClosedIssue = (sheet, logSheet, lastRow, issueId) => {
       break;
     }
   }
-}
+};
 
 // Issueが開かれた時の処理
 const setRowValues = (sheet, rowNum, issue) => {
   const lastColumn = sheet.getLastColumn();
-  sheet.getRange(rowNum, COLUMN_TITLE, 1, lastColumn).setValues([[
-    `=HYPERLINK("${issue.html_url}", "${issue.title}")`,
-    issue.labels.map(label => label.name).join(", "),
-    issue.assignees.map(assignee => assignee.login).join(", "),
-    issue.body,
-    issue.html_url
-  ]]);
+  sheet
+    .getRange(rowNum, COLUMN_TITLE, 1, lastColumn)
+    .setValues([
+      [
+        `=HYPERLINK("${issue.html_url}", "${issue.title}")`,
+        issue.labels.map((label) => label.name).join(', '),
+        issue.assignees.map((assignee) => assignee.login).join(', '),
+        issue.body,
+        issue.html_url,
+      ],
+    ]);
 };
 
 const handleOpenedIssue = (sheet, logSheet, lastRow, insertRow, issue, issueId) => {
   // 全データを取得
   const lastColumn = sheet.getLastColumn();
   const data = sheet.getRange(START_ROW, START_COLUMN, lastRow, lastColumn).getValues();
-  const rowIndex = data.findIndex(row => row[0] === issueId);
+  const rowIndex = data.findIndex((row) => row[0] === issueId);
 
   // 既存のIssueがあるかを確認: あれば更新、なければ新規追加
   if (rowIndex !== -1) {
@@ -288,19 +289,23 @@ const handleOpenedIssue = (sheet, logSheet, lastRow, insertRow, issue, issueId) 
     setRowValues(sheet, rowIndex + 1, issue);
   } else if (lastRow >= insertRow) {
     // 行を挿入してデータを設定
-    logSheet.appendRow([new Date(), "reopened"]);
+    logSheet.appendRow([new Date(), 'reopened']);
     sheet.insertRowBefore(insertRow);
-    sheet.getRange(insertRow, 1, 1,  lastColumn).setValues([[
-      issueId,
-      `=HYPERLINK("${issue.html_url}", "${issue.title}")`,
-      issue.labels.map(label => label.name).join(", "),
-      issue.assignees.map(assignee => assignee.login).join(", "),
-      issue.body,
-      '', '', '', '', // 余分な列に空文字を設定
-    ]]);
+    sheet.getRange(insertRow, 1, 1, lastColumn).setValues([
+      [
+        issueId,
+        `=HYPERLINK("${issue.html_url}", "${issue.title}")`,
+        issue.labels.map((label) => label.name).join(', '),
+        issue.assignees.map((assignee) => assignee.login).join(', '),
+        issue.body,
+        '',
+        '',
+        '',
+        '', // 余分な列に空文字を設定
+      ],
+    ]);
   }
 };
-
 
 // コメントが作成された時の処理
 const handleCreatedAction = (sheet, lastRow, issueId) => {
@@ -312,7 +317,7 @@ const handleCreatedAction = (sheet, lastRow, issueId) => {
       break;
     }
   }
-}
+};
 
 // labelが追加・削除された時の処理
 const handleLabeled = (sheet, lastRow, issueId) => {
@@ -320,18 +325,18 @@ const handleLabeled = (sheet, lastRow, issueId) => {
   for (let i = 1; i <= lastRow; i++) {
     const rowIssueId = sheet.getRange(i, COLUMN_ISSUE_ID).getValue();
     if (rowIssueId === issueId) {
-      sheet.getRange(i, COLUMN_LABELS).setValue(Array.from(labels).join(", "));
+      sheet.getRange(i, COLUMN_LABELS).setValue(Array.from(labels).join(', '));
       break;
     }
   }
-}
+};
 
 /**
  * Issueのassigneesが変更されたときの処理
  */
 const handleAssigneesChanged = (sheet, lastRow, issueId) => {
   const issue = fetchIssue(issueId);
-  const assignees = issue.assignees.map(assignee => assignee.login).join(", ");
+  const assignees = issue.assignees.map((assignee) => assignee.login).join(', ');
   for (let i = 1; i <= lastRow; i++) {
     const rowIssueId = sheet.getRange(i, 1).getValue();
     if (rowIssueId === issueId) {
@@ -339,23 +344,23 @@ const handleAssigneesChanged = (sheet, lastRow, issueId) => {
       break;
     }
   }
-}
+};
 
 // Issueのassigneesが変更されたときの処理
 const updateAssigneesInSheet = (sheet, logSheet, lastRow, issueId) => {
   const url = `${GITHUB_URL}/issues/${issueId}`;
   const options = {
-    'method': 'GET',
-    'headers': {
-      'Authorization': `token ${GITHUB_ACCESS_TOKEN}`,
-      'Accept': 'application/vnd.github.v3+json'
-    }
+    method: 'GET',
+    headers: {
+      Authorization: `token ${GITHUB_ACCESS_TOKEN}`,
+      Accept: 'application/vnd.github.v3+json',
+    },
   };
   // GitHubからIssueの詳細を取得する
   const response = UrlFetchApp.fetch(url, options);
   const issue = JSON.parse(response.getContentText());
   // Issueのassigneesを取得する
-  const assignees = issue.assignees.map(assignee => assignee.login).join(", ");
+  const assignees = issue.assignees.map((assignee) => assignee.login).join(', ');
 
   // スプレッドシートの対応する行にassigneesを反映する
   for (let i = 1; i <= lastRow; i++) {
@@ -365,7 +370,7 @@ const updateAssigneesInSheet = (sheet, logSheet, lastRow, issueId) => {
       break;
     }
   }
-}
+};
 
 /**
  * トリガー関数
@@ -376,53 +381,54 @@ const getOrCreateSheet = (sheetName) => {
     sheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet(sheetName);
   }
   return sheet;
-}
+};
 
-const onEdit = (e) => { 
+const onEdit = (e) => {
   const range = e.range;
   const sheet = range.getSheet();
   const editedCellColumn = range.getColumn();
   const editedRow = range.getRow();
-  const logSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("ログ");
+  const logSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('ログ');
 
-  if (sheet.getName() === "Issues" && editedCellColumn === 9 && editedRow === 2) {
+  if (sheet.getName() === 'Issues' && editedCellColumn === COLUMN_EXECUTION && editedRow === 2) {
     // 初期設定（github issueをスプシに反映）
     initializeLabelDropdown(sheet);
     populateSheetWithIssues(sheet, logSheet);
-  } else if(sheet.getName() === "Issues" && editedCellColumn === 9 && editedRow > 2) {
+  } else if (
+    sheet.getName() === 'Issues' &&
+    editedCellColumn === COLUMN_EXECUTION &&
+    editedRow > 2
+  ) {
     // スプシを更新する度に実行
-    postCommentToGithubIssue(sheet,editedRow);
-    updateIssueLabelsInGithub(sheet,editedRow);
+    postCommentToGithubIssue(sheet, editedRow);
+    updateIssueLabelsInGithub(sheet, editedRow);
   }
-}
-
-
+};
 
 const doPost = (e) => {
   const postData = JSON.parse(e.postData.contents);
   const issue = postData.issue;
   const action = postData.action;
   const issueId = issue.number;
-  const logSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("ログ");
+  const logSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('ログ');
 
-  let sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Issues");
+  let sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Issues');
   if (!sheet) {
-    sheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet("Issues");
+    sheet = SpreadsheetApp.getActiveSpreadsheet().insertSheet('Issues');
   }
   const lastRow = sheet.getLastRow();
   const insertRow = 3;
 
-  if (action === "closed") {
+  if (action === 'closed') {
     handleClosedIssue(sheet, logSheet, lastRow, issueId);
-  } else if (action === "opened" || action === "reopened") {
-    logSheet.appendRow([new Date(), "reopened"]);
+  } else if (action === 'opened' || action === 'reopened') {
+    logSheet.appendRow([new Date(), 'reopened']);
     handleOpenedIssue(sheet, logSheet, lastRow, insertRow, issue, issueId);
-  } else if (action === "created") {
+  } else if (action === 'created') {
     handleCreatedAction(sheet, lastRow, issueId);
   } else if (action === 'labeled' || action === 'unlabeled') {
-    handleLabeled (sheet, lastRow, issueId);
+    handleLabeled(sheet, lastRow, issueId);
   } else if (action === 'assigned' || action === 'unassigned') {
     handleAssigneesChanged(sheet, lastRow, issueId);
   }
-}
-
+};
