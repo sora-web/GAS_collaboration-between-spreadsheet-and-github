@@ -291,19 +291,17 @@ const handleOpenedIssue = (sheet, logSheet, lastRow, insertRow, issue, issueId) 
     // 行を挿入してデータを設定
     logSheet.appendRow([new Date(), 'reopened']);
     sheet.insertRowBefore(insertRow);
-    sheet.getRange(insertRow, 1, 1, lastColumn).setValues([
-      [
-        issueId,
-        `=HYPERLINK("${issue.html_url}", "${issue.title}")`,
-        issue.labels.map((label) => label.name).join(', '),
-        issue.assignees.map((assignee) => assignee.login).join(', '),
-        issue.body,
-        '',
-        '',
-        '',
-        '', // 余分な列に空文字を設定
-      ],
-    ]);
+    sheet
+      .getRange(insertRow, 1, 1, 5)
+      .setValues([
+        [
+          issueId,
+          `=HYPERLINK("${issue.html_url}", "${issue.title}")`,
+          issue.labels.map((label) => label.name).join(', '),
+          issue.assignees.map((assignee) => assignee.login).join(', '),
+          issue.body,
+        ],
+      ]);
   }
 };
 
